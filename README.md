@@ -22,4 +22,4 @@ Set the environment variable `OPENAI_API_KEY` to your [OpenAI API key](https://p
 export OPENAI_API_KEY=<YOUR API KEY>
 ```
 
-Alternatively, you can set the `OPENAI_API_KEY` variable in `gpt-commit.py`. You can also set `OPENAI_ORG_ID` this way (optional).
+Alternatively, you can set the `openai.api_key` variable in `gpt-commit.py`. You can also set `openai.organization` this way (optional).
