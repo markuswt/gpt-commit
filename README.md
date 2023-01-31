@@ -9,10 +9,10 @@ git add .
 
 ## Getting Started
 
-Install `requests` and clone `gpt-commit`.
+Install `openai` and clone `gpt-commit`.
 
 ```
-pip3 install requests
+pip3 install openai
 git clone git@github.com:markuswt/gpt-commit.git
 ```
 
