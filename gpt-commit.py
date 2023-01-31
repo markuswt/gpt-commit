@@ -35,7 +35,7 @@ def summarize_diff(diff):
     return complete(DIFF_PROMPT + "\n\n" + diff + "\n\n")
 
 
-def generate_commit_messate(summaries):
+def generate_commit_message(summaries):
     assert summaries
     return complete(COMMIT_MSG_PROMPT + "\n\n" + summaries + "\n\n")
 
@@ -79,10 +79,10 @@ if __name__ == "__main__":
     if not diff:
         print("Nothing to commit")
     elif len(diff) < 11900:
-        commit_message = generate_commit_messate(summarize_diff(diff))
+        commit_message = generate_commit_message(summarize_diff(diff))
         commit(commit_message)
     else:
         summaries = summarize_added_modified() + "\n\n" + summarize_deleted(
         ) + "\n\n" + summarize_other()
-        commit_message = generate_commit_messate(summaries)
+        commit_message = generate_commit_message(summaries)
         commit(commit_message)
