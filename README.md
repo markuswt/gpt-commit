@@ -32,7 +32,7 @@ Create a ~/.git-templates/hooks/prepare-commit-msg with the following contents:
 
 [ -f "$GIT_DIR/MERGE_MSG" ] && exit 0
 
-python /d/tools/gpt/gpt-commit-message.py >"$1"
+python gpt-commit-message.py >"$1"
 ```
 
-Run `git init` into existing repositories and this will allow you to output just the message to the commit. Useful for rebasing.
+Run `git init` into existing repositories and this will allow you to output just the message using the default `git commit` command. Useful when rebasing.
