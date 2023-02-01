@@ -36,7 +36,7 @@ def get_diff(path=".", diff_filter="ACDMRTUXB", name_only=False):
     ]
     if name_only:
         arguments.append("--name-only")
-    
+
     diff_process = subprocess.run(arguments + [path],
                                   capture_output=True,
                                   text=True)
