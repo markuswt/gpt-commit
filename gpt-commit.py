@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import os
 import openai
+import os
 import subprocess
+import sys
 
 DIFF_PROMPT = "Generate a succinct summary of the following code changes:"
 COMMIT_MSG_PROMPT = "Generate a short commit message from this:"
@@ -76,4 +77,8 @@ if __name__ == "__main__":
         summaries = summarize_added_modified() + "\n\n" + summarize_deleted(
         ) + "\n\n" + summarize_other()
         commit_message = generate_commit_message(summaries)
-    exit(commit(commit_message))
+    
+    if "--print-message" in sys.argv:
+        print(commit_message)
+    else:
+        exit(commit(commit_message))

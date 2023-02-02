@@ -23,3 +23,7 @@ export OPENAI_API_KEY=<YOUR API KEY>
 ```
 
 Alternatively, you can set the `openai.api_key` variable in `gpt-commit.py`. You can also set `openai.organization` this way (optional).
+
+### Modify `git commit` (optional)
+
+If you want `git commit` to automatically invoke `gpt-commit`, copy `gpt-commit.py` and `prepare-commit-msg` to the `.git/hooks` directory in any project where you want to modify `git commit`.
