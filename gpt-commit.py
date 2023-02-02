@@ -7,12 +7,13 @@ import sys
 
 DIFF_PROMPT = "Generate a succinct summary of the following code changes:"
 COMMIT_MSG_PROMPT = "Generate a short commit message from this:"
+PROMPT_CUTOFF = 10000
 openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 
 def complete(prompt):
-    completion_resp = openai.Completion.create(prompt=prompt[:10000],
+    completion_resp = openai.Completion.create(prompt=prompt[:PROMPT_CUTOFF],
                                                engine="text-davinci-003",
                                                max_tokens=128)
     completion = completion_resp["choices"][0]["text"].strip()
@@ -24,7 +25,7 @@ def summarize_diff(diff):
     return complete(DIFF_PROMPT + "\n\n" + diff + "\n\n")
 
 
-def generate_commit_message(summaries):
+def summarize_summaries(summaries):
     assert summaries
     return complete(COMMIT_MSG_PROMPT + "\n\n" + summaries + "\n\n")
 
@@ -61,22 +62,32 @@ def summarize_other():
     return summarize_diff(other_changes) if other_changes else ""
 
 
+def generate_commit_message(diff):
+    if not diff:
+        # no files staged or only whitespace diffs
+        return "Fix whitespace"
+    elif len(diff) < PROMPT_CUTOFF - len(DIFF_PROMPT) // 3:
+        return summarize_summaries(summarize_diff(diff))
+    
+    # diff too large, split it up in chunks to summarize
+    summaries = summarize_added_modified() + "\n\n" + summarize_deleted(
+    ) + "\n\n" + summarize_other()
+    return summarize_summaries(summaries)
+
+
 def commit(message):
+    # will ignore message if diff is empty
     return subprocess.run(["git", "commit", "--message", message,
                            "--edit"]).returncode
 
 
 if __name__ == "__main__":
-    diff = get_diff()
-    if not diff:
-        # no files staged or only whitespace diffs
-        commit_message = "Fix whitespace"
-    elif len(diff) < 9900:
-        commit_message = generate_commit_message(summarize_diff(diff))
-    else:
-        summaries = summarize_added_modified() + "\n\n" + summarize_deleted(
-        ) + "\n\n" + summarize_other()
-        commit_message = generate_commit_message(summaries)
+    try:
+        diff = get_diff()
+        commit_message = generate_commit_message(diff)
+    except UnicodeDecodeError:
+        print("gpt-commit does not support binary files", file=sys.stderr)
+        commit_message = "# gpt-commit does not support binary files. Please enter a commit message manually or unstage any binary files."
     
     if "--print-message" in sys.argv:
         print(commit_message)
