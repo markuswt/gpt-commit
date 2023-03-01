@@ -6,17 +6,22 @@ import subprocess
 import sys
 
 DIFF_PROMPT = "Generate a succinct summary of the following code changes:"
-COMMIT_MSG_PROMPT = "Generate a short commit message from this:"
+COMMIT_MSG_PROMPT = "Using no more than 50 characters, generate a commit message from these summaries:"
 PROMPT_CUTOFF = 10000
 openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 
 def complete(prompt):
-    completion_resp = openai.Completion.create(prompt=prompt[:PROMPT_CUTOFF],
-                                               engine="text-davinci-003",
-                                               max_tokens=128)
-    completion = completion_resp["choices"][0]["text"].strip()
+    completion_resp = openai.ChatCompletion.create(model="gpt-3.5-turbo",
+                                                   messages=[{
+                                                       "role":
+                                                       "user",
+                                                       "content":
+                                                       prompt[:PROMPT_CUTOFF]
+                                                   }],
+                                                   max_tokens=128)
+    completion = completion_resp.choices[0].message.content.strip()
     return completion
 
 
@@ -67,11 +72,11 @@ def generate_commit_message(diff):
         # no files staged or only whitespace diffs
         return "Fix whitespace"
     elif len(diff) < PROMPT_CUTOFF - len(DIFF_PROMPT) // 3:
-        return summarize_summaries(summarize_diff(diff))
-    
-    # diff too large, split it up in chunks to summarize
-    summaries = summarize_added_modified() + "\n\n" + summarize_deleted(
-    ) + "\n\n" + summarize_other()
+        summaries = summarize_diff(diff)
+    else:
+        # diff too large, split it up in chunks to summarize
+        summaries = summarize_added_modified() + "\n\n" + summarize_deleted(
+        ) + "\n\n" + summarize_other()
     return summarize_summaries(summaries)
 
 
