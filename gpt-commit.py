@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 import openai
 import os
 import subprocess
@@ -10,20 +11,6 @@ COMMIT_MSG_PROMPT = "Using no more than 50 characters, generate a descriptive co
 PROMPT_CUTOFF = 10000
 openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.environ["OPENAI_API_KEY"]
-
-
-def complete(prompt):
-    completion_resp = openai.ChatCompletion.create(model="gpt-3.5-turbo",
-                                                   messages=[{
-                                                       "role":
-                                                       "user",
-                                                       "content":
-                                                       prompt[:PROMPT_CUTOFF +
-                                                              100]
-                                                   }],
-                                                   max_tokens=128)
-    completion = completion_resp.choices[0].message.content.strip()
-    return completion
 
 
 def get_diff():
@@ -43,51 +30,65 @@ def parse_diff(diff):
     chunked_file_diffs = []
     for file_diff in file_diffs:
         [head, *chunks] = file_diff.split("\n@@")
-        chunks = ["\n@@" + chunk for chunk in chunks]
+        chunks = ["\n@@" + chunk for chunk in reversed(chunks)]
         chunked_file_diffs.append((head, chunks))
     return chunked_file_diffs
 
 
 def assemble_diffs(parsed_diffs, cutoff):
     # create multiple well-formatted diff strings, each being shorter than cutoff
-    assempled_diffs = [""]
+    assembled_diffs = [""]
     
     def add_chunk(chunk):
-        if len(assempled_diffs[-1]) + len(chunk) >= cutoff:
-            assempled_diffs.append(chunk)
-            return False
-        else:
-            assempled_diffs[-1] += "\n" + chunk
+        if len(assembled_diffs[-1]) + len(chunk) <= cutoff:
+            assembled_diffs[-1] += "\n" + chunk
             return True
+        else:
+            assembled_diffs.append(chunk)
+            return False
     
     for head, chunks in parsed_diffs:
         if not chunks:
             add_chunk(head)
+        else:
+            add_chunk(head + chunks.pop())
         while chunks:
-            if not add_chunk(chunks[0]):
-                assempled_diffs[-1] = head + assempled_diffs[-1]
-            chunks = chunks[1:]
-    return assempled_diffs
+            if not add_chunk(chunks.pop()):
+                assembled_diffs[-1] = head + assembled_diffs[-1]
+    return assembled_diffs
 
 
-def summarize_diff(diff):
+async def complete(prompt):
+    completion_resp = await openai.ChatCompletion.acreate(
+        model="gpt-3.5-turbo",
+        messages=[{
+            "role": "user",
+            "content": prompt[:PROMPT_CUTOFF + 100]
+        }],
+        max_tokens=128)
+    completion = completion_resp.choices[0].message.content.strip()
+    return completion
+
+
+async def summarize_diff(diff):
     assert diff
-    return complete(DIFF_PROMPT + "\n\n" + diff + "\n\n")
+    return await complete(DIFF_PROMPT + "\n\n" + diff + "\n\n")
 
 
-def summarize_summaries(summaries):
+async def summarize_summaries(summaries):
     assert summaries
-    return complete(COMMIT_MSG_PROMPT + "\n\n" + summaries + "\n\n")
+    return await complete(COMMIT_MSG_PROMPT + "\n\n" + summaries + "\n\n")
 
 
-def generate_commit_message(diff):
+async def generate_commit_message(diff):
     if not diff:
         # no files staged or only whitespace diffs
         return "Fix whitespace"
     
     assembled_diffs = assemble_diffs(parse_diff(diff), PROMPT_CUTOFF)
-    summaries = "\n".join([summarize_diff(diff) for diff in assembled_diffs])
-    return summarize_summaries(summaries)
+    summaries = await asyncio.gather(
+        *[summarize_diff(diff) for diff in assembled_diffs])
+    return await summarize_summaries("\n".join(summaries))
 
 
 def commit(message):
@@ -96,10 +97,10 @@ def commit(message):
                            "--edit"]).returncode
 
 
-if __name__ == "__main__":
+async def main():
     try:
         diff = get_diff()
-        commit_message = generate_commit_message(diff)
+        commit_message = await generate_commit_message(diff)
     except UnicodeDecodeError:
         print("gpt-commit does not support binary files", file=sys.stderr)
         commit_message = "# gpt-commit does not support binary files. Please enter a commit message manually or unstage any binary files."
@@ -108,3 +109,7 @@ if __name__ == "__main__":
         print(commit_message)
     else:
         exit(commit(commit_message))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
