@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import argparse
 import asyncio
-import openai
 import os
 import subprocess
 import sys
+
+import openai
 
 DIFF_PROMPT = "Generate a succinct summary of the following code changes:"
 COMMIT_MSG_PROMPT = "Using no more than 50 characters, generate a descriptive commit message from these summaries:"
@@ -15,8 +17,13 @@ openai.api_key = os.environ["OPENAI_API_KEY"]
 
 def get_diff():
     arguments = [
-        "git", "--no-pager", "diff", "--staged", "--ignore-space-change",
-        "--ignore-all-space", "--ignore-blank-lines"
+        "git",
+        "--no-pager",
+        "diff",
+        "--staged",
+        "--ignore-space-change",
+        "--ignore-all-space",
+        "--ignore-blank-lines",
     ]
     diff_process = subprocess.run(arguments, capture_output=True, text=True)
     diff_process.check_returncode()
@@ -25,8 +32,9 @@ def get_diff():
 
 def parse_diff(diff):
     file_diffs = diff.split("\ndiff")
-    file_diffs = [file_diffs[0]
-                  ] + ["\ndiff" + file_diff for file_diff in file_diffs[1:]]
+    file_diffs = [file_diffs[0]] + [
+        "\ndiff" + file_diff for file_diff in file_diffs[1:]
+    ]
     chunked_file_diffs = []
     for file_diff in file_diffs:
         [head, *chunks] = file_diff.split("\n@@")
@@ -38,7 +46,7 @@ def parse_diff(diff):
 def assemble_diffs(parsed_diffs, cutoff):
     # create multiple well-formatted diff strings, each being shorter than cutoff
     assembled_diffs = [""]
-    
+
     def add_chunk(chunk):
         if len(assembled_diffs[-1]) + len(chunk) <= cutoff:
             assembled_diffs[-1] += "\n" + chunk
@@ -46,7 +54,7 @@ def assemble_diffs(parsed_diffs, cutoff):
         else:
             assembled_diffs.append(chunk)
             return False
-    
+
     for head, chunks in parsed_diffs:
         if not chunks:
             add_chunk(head)
@@ -61,11 +69,9 @@ def assemble_diffs(parsed_diffs, cutoff):
 async def complete(prompt):
     completion_resp = await openai.ChatCompletion.acreate(
         model="gpt-3.5-turbo",
-        messages=[{
-            "role": "user",
-            "content": prompt[:PROMPT_CUTOFF + 100]
-        }],
-        max_tokens=128)
+        messages=[{"role": "user", "content": prompt[: PROMPT_CUTOFF + 100]}],
+        max_tokens=128,
+    )
     completion = completion_resp.choices[0].message.content.strip()
     return completion
 
@@ -84,28 +90,47 @@ async def generate_commit_message(diff):
     if not diff:
         # no files staged or only whitespace diffs
         return "Fix whitespace"
-    
+
     assembled_diffs = assemble_diffs(parse_diff(diff), PROMPT_CUTOFF)
     summaries = await asyncio.gather(
-        *[summarize_diff(diff) for diff in assembled_diffs])
+        *[summarize_diff(diff) for diff in assembled_diffs]
+    )
     return await summarize_summaries("\n".join(summaries))
 
 
 def commit(message):
     # will ignore message if diff is empty
-    return subprocess.run(["git", "commit", "--message", message,
-                           "--edit"]).returncode
+    return subprocess.run(["git", "commit", "--message", message, "--edit"]).returncode
+
+
+def parse_args():
+    """
+    Extract the CLI arguments from argparse
+    """
+    parser = argparse.ArgumentParser(description="Generate a commit message froma diff")
+
+    parser.add_argument(
+        "-p",
+        "--print",
+        action="store_true",
+        default=True,
+        help="Print message in place of performing commit",
+    )
+
+    return parser.parse_args()
 
 
 async def main():
+    args = parse_args()
+
     try:
         diff = get_diff()
         commit_message = await generate_commit_message(diff)
     except UnicodeDecodeError:
         print("gpt-commit does not support binary files", file=sys.stderr)
         commit_message = "# gpt-commit does not support binary files. Please enter a commit message manually or unstage any binary files."
-    
-    if "--print-message" in sys.argv:
+
+    if args.print:
         print(commit_message)
     else:
         exit(commit(commit_message))
