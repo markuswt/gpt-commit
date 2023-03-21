@@ -18,16 +18,18 @@ openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 
-def get_diff():
+def get_diff(ignore_whitespace=True):
     arguments = [
         "git",
         "--no-pager",
         "diff",
         "--staged",
-        "--ignore-space-change",
-        "--ignore-all-space",
-        "--ignore-blank-lines",
     ]
+    if ignore_whitespace:
+        arguments += [
+            "--ignore-space-change",
+            "--ignore-blank-lines",
+        ]
     diff_process = subprocess.run(arguments, capture_output=True, text=True)
     diff_process.check_returncode()
     return diff_process.stdout.strip()
@@ -93,7 +95,6 @@ async def summarize_summaries(summaries):
 
 async def generate_commit_message(diff):
     if not diff:
-        # no files staged or only whitespace diffs
         return "Fix whitespace"
 
     assembled_diffs = assemble_diffs(parse_diff(diff), PROMPT_CUTOFF)
@@ -132,8 +133,12 @@ async def main():
     args = parse_args()
 
     try:
-        diff = get_diff()
-        commit_message = await generate_commit_message(diff)
+        if not get_diff(ignore_whitespace=False):
+            print(
+                "No changes staged. Use `git add` to stage files before invoking gpt-commit."
+            )
+            exit()
+        commit_message = await generate_commit_message(get_diff())
     except UnicodeDecodeError:
         print("gpt-commit does not support binary files", file=sys.stderr)
         commit_message = (
