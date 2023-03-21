@@ -47,7 +47,9 @@ def parse_diff(diff):
 
 
 def assemble_diffs(parsed_diffs, cutoff):
-    # create multiple well-formatted diff strings, each being shorter than cutoff
+    """
+    Create multiple well-formatted diff strings, each being shorter than cutoff
+    """
     assembled_diffs = [""]
 
     def add_chunk(chunk):
@@ -110,16 +112,19 @@ def parse_args():
     """
     Extract the CLI arguments from argparse
     """
-    parser = argparse.ArgumentParser(description="Generate a commit message froma diff")
-
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate a commit message for staged files and commit them. "
+            "Git will prompt you to edit the generated commit message."
+        )
+    )
     parser.add_argument(
         "-p",
         "--print-message",
         action="store_true",
         default=False,
-        help="Print message in place of performing commit",
+        help="print message in place of performing commit",
     )
-
     return parser.parse_args()
 
 
