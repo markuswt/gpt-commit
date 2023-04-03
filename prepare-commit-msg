@@ -2,5 +2,6 @@
 
 # check if commit message is empty
 if ! grep -v "^#" "$1" | grep -q -v "^$"; then
-    ./gpt-commit.py --print-message > "$1"
+    SCRIPT_DIR=$(dirname "$0")
+    "${SCRIPT_DIR}/gpt-commit.py" --print-message > "$1"
 fi
