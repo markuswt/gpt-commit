@@ -84,8 +84,10 @@ async def complete(prompt):
 
 
 async def summarize_diff(diff):
-    assert diff
-    return await complete(DIFF_PROMPT + "\n\n" + diff + "\n\n")
+    if diff is not None:
+        return await complete(DIFF_PROMPT + "\n\n" + diff + "\n\n")
+    else:
+        return ""
 
 
 async def summarize_summaries(summaries):
